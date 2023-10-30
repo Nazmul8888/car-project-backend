@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const app = express();
 const port = process.env.PORT || 5001;
@@ -45,7 +45,7 @@ async function run() {
 
     app.get('/services/:id', async(req,res)=>{
       const id = req.params.id;
-      const query ={_id: new object(id)}
+      const query ={_id: new ObjectId(id)}
 
       const options = {
         projection: {title:1,price:1, img:1, services_id: 1}
@@ -60,7 +60,11 @@ async function run() {
 
     app.get('/checkout', async (req,res)=>{
     console.log(req.query.email)
-      const result = await checkOutCollection.find().toArray();
+    let query = {};
+    if(req.query?.email){
+      query = {email: req.query.email}
+    }
+      const result = await checkOutCollection.find(query).toArray();
       res.send(result);
     })
 
@@ -70,6 +74,18 @@ async function run() {
       const result = await checkOutCollection.insertOne(order)
       res.send(result);
 
+    })
+
+    app.patch('/checkout/:id', async(req,res)=>{
+      const updateCheckout =req.body;
+      console.log(updateCheckout);
+    })
+
+    app.delete('/checkout/:id', async(req,res)=>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await checkOutCollection.deleteOne(query)
+      res.send(result)
     })
 
 
