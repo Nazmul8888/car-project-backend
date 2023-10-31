@@ -1,13 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 require('dotenv').config()
 const app = express();
 const port = process.env.PORT || 5001;
 
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // id -doctor pass- o0rT4gCBDiotFBcV
 
@@ -26,6 +32,34 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+// middlewares
+const logger = async(req,res,next)=>{
+  console.log('called:',req.host, req.originalUrl)
+  next();
+}
+// verify token
+
+
+const verifyToken = async(req,res,next)=>{
+  const token = req.cookies?.token;
+  console.log('value of middleware',token)
+  if(!token){
+    return res.status(401).send({message: 'not authorized'})
+  }
+  next()
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET,(err,decode)=>{
+    if(err){
+      console.log(err)
+      return res.status(401).send({message:'unauthorized'})
+    }
+  console.log('value in the token',decode)
+  req.user = decode;
+  next()
+  })
+  
+}
+
+
 
 async function run() {
   try {
@@ -36,7 +70,28 @@ async function run() {
     const servicesCollection = client.db('doctor').collection('services');
     const checkOutCollection = client.db('doctor').collection('checkout')
 
-    app.get('/services', async(req,res)=>{
+    // auth related api
+    app.post('/jwt', logger, async(req,res)=>{
+      const user = req.body;
+      console.log(user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,
+        {expiresIn: '1h'})
+
+        // how to token set
+
+        res
+        .cookie('token',token,{
+          httpOnly:true,
+          secure:false,
+          // sameSite:'none'
+
+        })
+      .send({success: true})
+    })
+
+
+    // services related api
+    app.get('/services', logger, async(req,res)=>{
       const cursor = servicesCollection.find();
       const result = await cursor.toArray();
       res.send(result)
@@ -58,8 +113,9 @@ async function run() {
   //  checkout 
 
 
-    app.get('/checkout', async (req,res)=>{
-    console.log(req.query.email)
+    app.get('/checkout', logger, verifyToken, async (req,res)=>{
+    console.log(req.query.email);
+    // console.log('tok tok token', req.cookies.token)
     let query = {};
     if(req.query?.email){
       query = {email: req.query.email}
